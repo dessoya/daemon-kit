@@ -1,0 +1,8 @@
+%stdout% %stderr%  {
+	daily
+	rotate 7
+	missingok
+	postrotate
+		/etc/init.d/%app_name% logrotate
+	endscript
+}
