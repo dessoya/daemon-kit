@@ -1,6 +1,7 @@
 'use strict'
 
 var fs		= require('fs')
+  , util	= require('util')
 
 // 1. read for install commad
 //
@@ -10,6 +11,11 @@ var fs		= require('fs')
 //
 // --stdout=/var/log/app/stdout.log
 // --stderr=/var/log/app/stderr.log
+
+// 3. --env=trunk
+//
+
+var env_name = null
 
 // mysql:x:105
 var re_name = /^([a-zA-Z]+)\:x\:(\d+)/
@@ -52,7 +58,7 @@ var re_var = /\%([a-zA-Z\d_-]+)\%/
 var json, config_path = null
 function loadConfig() {
 
-	var path = config_path ? config_path : (process.cwd() + '/daemon.json')
+	var path = config_path ? config_path : (process.cwd() + '/daemon' + ( env_name ? '.' + env_name : '' ) + '.json')
 	if(!fs.existsSync(path)) {
 		console.log("can't find daemon.json in application dir")
 		process.exit()
@@ -91,6 +97,8 @@ for(var i = 0, c = process.argv, l = c.length; i < l; i++) {
 
 		// console.log('cwd ' + process.cwd())
 
+		var logsdir = json.logs_dir ? json.logs_dir : '/var/log/' + json.name
+
 		var params = {
 		    app_name: json.name,
 			daemon_script_path: process.cwd() + '/' + json.name,
@@ -98,13 +106,23 @@ for(var i = 0, c = process.argv, l = c.length; i < l; i++) {
 			app_user: json.user,
 			app_group: json.group,
 			config_path: process.cwd() + '/daemon.json',
-			stdout: '/var/log/' + json.name + '/stdout.log',
-			stderr: '/var/log/' + json.name + '/stderr.log',
+			stdout: logsdir + '/stdout.log',
+			stderr: logsdir + '/stderr.log',
+			node_bin_dir: json.node_bin_dir ? json.node_bin_dir : '/bin',
+			env_config: "",
+			env: env_name ? '--env=' + env_name : ''
 		}
-		if(!fs.existsSync('/var/log/' + json.name)) {
-			fs.mkdirSync('/var/log/' + json.name, 488)
-			fs.chmodSync('/var/log/' + json.name, 488)
-			fs.chownSync('/var/log/' + json.name, getUserId(json.user), getGroupId(json.group))
+
+		if(json.env_config) {
+			// #[ -r /etc/default/$INIT_SCRIPT_NAME ] && . /etc/default/$INIT_SCRIPT_NAME
+			var p = process.cwd() + '/' + json.env_config
+			params.env_config = '[ -r ' + p + ' ] && . ' + p
+		}
+
+		if(!fs.existsSync(logsdir)) {
+			fs.mkdirSync(logsdir, 488)
+			fs.chmodSync(logsdir, 488)
+			fs.chownSync(logsdir, getUserId(json.user), getGroupId(json.group))
 		}
 		var a
 		while(a = re_var.exec(content)) {
@@ -147,6 +165,10 @@ for(var i = 0, c = process.argv, l = c.length; i < l; i++) {
 	else if(item.length > 9 && item.substr(0, 9) === '--stderr=') {
 		stderr = item.substr(9)
 	}
+	// --env=trunk
+	else if(item.length > 6 && item.substr(0, 6) === '--env=') {
+		env_name = item.substr(6)
+	}
 }
 
 loadConfig()
@@ -168,6 +190,7 @@ function LogFile(filename) {
 	this.log_fh = fs.openSync(filename, 'a')
 	LogFile.prototype.items.push(this)
 	this.log = this.log.bind(this)
+	// console.log('open log file ' + filename)
 }
 
 LogFile.prototype = {
@@ -192,7 +215,7 @@ LogFile.prototype = {
 	},
 
 	reopen: function() {
-		if(!fs.existsSync(this.filename)) {
+		if(!fs.existsSync(this.filename) || fs.statSync(this.filename).size < 1) {
 		    this.log('close log')
 			fs.closeSync(this.log_fh)
 			this.log_fh = fs.openSync(this.filename, 'a')
@@ -204,6 +227,7 @@ LogFile.prototype = {
 process.on('SIGHUP', LogFile.prototype.onSigHub.bind(LogFile.prototype))
 
 console.log = (new LogFile(stdout)).log
+console.dir = function(p) { console.log(util.inspect(p,{depth:null})) }
 process.stderr.write = (new LogFile(stderr)).log
 
 module.exports = { }

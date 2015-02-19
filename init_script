@@ -58,7 +58,7 @@
 PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin # modify if you need
 
 # DAEMON_ARGS="--harmony /home/myapp/myapp.js" 			# path to your node.js server/app
-DAEMON_ARGS="--harmony %daemon_script_path% --stdout=%stdout% --stderr=%stderr% --config_path=%config_path%" 			# path to your node.js server/app
+DAEMON_ARGS="--harmony %daemon_script_path% %env% --stdout=%stdout% --stderr=%stderr% --config_path=%config_path%" 			# path to your node.js server/app
                                             # NB: don't use ~/ in path
 
 DESC="%app_title%"						# whatever fancy description you like
@@ -76,7 +76,7 @@ LOCAL_VAR_RUN=/var/run            			# in case the init script is run by non-roo
                                             #         (see here: https://github.com/isaacs/npm/blob/master/README.md)
 
 NAME=node                                   # name of the node.js executable
-DAEMON=/bin/$NAME							# this SHOULD POINT TO where your node executable is
+DAEMON=%node_bin_dir%/$NAME							# this SHOULD POINT TO where your node executable is
 
 #
 #                                                                              #
@@ -108,6 +108,7 @@ SCRIPTNAME=/etc/init.d/$INIT_SCRIPT_NAME
 
 # Read configuration variable file if it is present
 #[ -r /etc/default/$INIT_SCRIPT_NAME ] && . /etc/default/$INIT_SCRIPT_NAME
+%env_config%
 
 # Load the VERBOSE setting and other rcS variables
 . /lib/init/vars.sh
@@ -150,7 +151,7 @@ do_stop()
 	#   2 if daemon could not be stopped
 	#   other if a failure occurred
 	#echo "do_stop a"
-	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE  --chuid $NODEUSER --name $DAEMON
+	start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE  --chuid $NODEUSER --exec $DAEMON
 	#echo "do_stop b"
 	RETVAL="$?"
 	#[ "$VERBOSE" != no ] && [ "$RETVAL" = 1 ] && log_daemon_msg  "  --->  SIGKILL failed => hardkill $DESC" "$INIT_SCRIPT_NAME_NOEXT"
@@ -185,7 +186,7 @@ do_reload() {
 	# restarting (for example, when it is sent a SIGHUP),
 	# then implement that here.
 	#
-	start-stop-daemon --stop --quiet --signal 1 --pidfile $PIDFILE  --chuid $NODEUSER --name $NAME
+	start-stop-daemon --stop --quiet --signal 1 --pidfile $PIDFILE  --chuid $NODEUSER --exec $NAME
 	return 0
 }
 
